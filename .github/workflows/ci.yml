@@ -1,0 +1,96 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+    
+    - name: Install pnpm
+      uses: pnpm/action-setup@v3
+      with:
+        version: latest
+    
+    - name: Get pnpm store directory
+      shell: bash
+      run: |
+        echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
+      id: pnpm-cache
+    
+    - name: Setup pnpm cache
+      uses: actions/cache@v4
+      with:
+        path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+        key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+        restore-keys: |
+          ${{ runner.os }}-pnpm-store-
+    
+    - name: Install dependencies
+      run: pnpm install
+    
+    - name: Lint
+      run: pnpm lint
+    
+    - name: Build
+      run: pnpm build
+      env:
+        RUNTIME_EXECUTION: true
+        NOVITA_API_KEY: ${{ secrets.NOVITA_API_KEY }}
+        MILVUS_HOST: ${{ secrets.MILVUS_HOST }}
+        MILVUS_PORT: ${{ secrets.MILVUS_PORT }}
+        MILVUS_TOKEN: ${{ secrets.MILVUS_TOKEN }}
+    
+    # Optional: Add testing step if you have tests
+    # - name: Run Tests
+    #   run: pnpm test
+
+  # Optional deployment job
+  deploy:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+    
+    - name: Install pnpm
+      uses: pnpm/action-setup@v3
+      with:
+        version: latest
+    
+    - name: Install dependencies
+      run: pnpm install
+    
+    - name: Build
+      run: pnpm build
+      env:
+        RUNTIME_EXECUTION: true
+        NOVITA_API_KEY: ${{ secrets.NOVITA_API_KEY }}
+        MILVUS_HOST: ${{ secrets.MILVUS_HOST }}
+        MILVUS_PORT: ${{ secrets.MILVUS_PORT }}
+        MILVUS_TOKEN: ${{ secrets.MILVUS_TOKEN }}
+    
+    # Add your deployment steps here (e.g., to Vercel, Netlify, etc.)
+    # - name: Deploy to Vercel
+    #   run: vercel deploy --prod
+    #   env:
+    #     VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }} 
